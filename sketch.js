@@ -1,192 +1,225 @@
-var JOGAR = 1;
-var ENCERRAR = 0;
-var estadoJogo = JOGAR;
+var PLAY = 1;
+var END = 0;
+var gameState = PLAY;
 
-var trex, trex_correndo, trex_colidiu;
-var solo, soloInvisivel, imagemDoSolo;
+var trex, trex_running, trex_collided;
+var ground, invisibleGround, groundImage;
 
-var grupoDeNuvens, imagemDaNuvem;
-var grupodeobstaculos, obstaculo1, obstaculo2, obstaculo3, obstaculo4, obstaculo5, obstaculo6;
+var cloudsGroup, cloudImage;
+var obstaclesGroup, obstacle1, obstacle2, obstacle3, obstacle4, obstacle5, obstacle6;
 
-var pontuacao=0;
-
-var fimDeJogo, reiniciar;
-
-
+var score;
+var gameOverImg,restartImg
+var jumpSound , checkPointSound, dieSound
 
 function preload(){
-  trex_correndo =   loadAnimation("trex1.png","trex3.png","trex4.png");
-  trex_colidiu = loadAnimation("trex_collided.png");
+  trex_running = loadAnimation("trex1.png","trex3.png","trex4.png");
+  trex_collided = loadAnimation("trex_collided.png");
   
-  imagemDoSolo = loadImage("ground2.png");
+  groundImage = loadImage("ground2.png");
   
-  imagemDaNuvem = loadImage("cloud.png");
+  cloudImage = loadImage("cloud.png");
   
-  obstaculo1 = loadImage("obstacle1.png");
-  obstaculo2 = loadImage("obstacle2.png");
-  obstaculo3 = loadImage("obstacle3.png");
-  obstaculo4 = loadImage("obstacle4.png");
-  obstaculo5 = loadImage("obstacle5.png");
-  obstaculo6 = loadImage("obstacle6.png");
+  obstacle1 = loadImage("obstacle1.png");
+  obstacle2 = loadImage("obstacle2.png");
+  obstacle3 = loadImage("obstacle3.png");
+  obstacle4 = loadImage("obstacle4.png");
+  obstacle5 = loadImage("obstacle5.png");
+  obstacle6 = loadImage("obstacle6.png");
   
-  imgFimDeJogo = loadImage("gameOver.png");
-  imgReiniciar = loadImage("restart.png");
+  restartImg = loadImage("restart.png")
+  gameOverImg = loadImage("gameOver.png")
+  
+  jumpSound = loadSound("jump.mp3")
+  dieSound = loadSound("die.mp3")
+  checkPointSound = loadSound("checkPoint.mp3")
 }
 
 function setup() {
-  createCanvas(600, 200);
+  createCanvas(windowWidth, windowHeight);
+
+  var message = "This is a message";
+ console.log(message)
   
-  trex = createSprite(50,180,20,50);
+  trex = createSprite(50,height-70,20,50);
+  trex.addAnimation("running", trex_running);
+  trex.addAnimation("collided", trex_collided);
   
-  trex.addAnimation("running", trex_correndo);
-  trex.addAnimation("collided", trex_colidiu);
+
   trex.scale = 0.5;
   
-  solo = createSprite(200,180,400,20);
-  solo.addImage("ground",imagemDoSolo);
-  solo.x = solo.width /2;
-  solo.velocityX = -(6 + 3*pontuacao/100);
+  ground = createSprite(width/2,height-20,width,20);
+  ground.addImage("ground",groundImage);
+  ground.x = ground.width /2;
   
-  fimDeJogo = createSprite(300,100);
-  fimDeJogo.addImage(imgFimDeJogo);
+  gameOver = createSprite(300,100);
+  gameOver.addImage(gameOverImg);
   
-  reiniciar = createSprite(300,140);
-  reiniciar.addImage(imgReiniciar);
+  restart = createSprite(300,140);
+  restart.addImage(restartImg);
   
-  fimDeJogo.scale = 0.5;
-  reiniciar.scale = 0.5;
+ 
+  gameOver.scale = 0.5;
+  restart.scale = 0.5;
+  
+  invisibleGround = createSprite(width/2,height,width,20);
+  invisibleGround.visible = false;
+  
+  //create Obstacle and Cloud Groups
+  obstaclesGroup = createGroup();
+  cloudsGroup = createGroup();
 
-  fimDeJogo.visible = false;
-  reiniciar.visible = false;
   
-  soloInvisivel = createSprite(200,190,400,10);
-  soloInvisivel.visible = false;
+  trex.setCollider("rectangle",0,0,trex.width,trex.height);
+  trex.debug = true
   
-  grupoDeNuvens = new Group();
-  grupoDeObstaculos = new Group();
+  score = 0;
   
-  pontuacao = 0;
 }
 
 function draw() {
-  //trex.debug = true;
-  background(255);
-  text("Pontuação: "+ pontuacao, 500,50);
   
-  if (estadoJogo === JOGAR){
-    pontuacao = pontuacao + Math.round(getFrameRate()/60);
-    solo.velocityX = -(6 + 3*pontuacao/100);
+  background(180);
+  //displaying score
+  text("Score: "+ score, 500,50);
   
-    if(keyDown("space") && trex.y >= 159) {
-      trex.velocityY = -12;
+  
+  if(gameState === PLAY){
+
+    gameOver.visible = false;
+    restart.visible = false;
+    
+    ground.velocityX = -(4 + 3* score/100)
+    //scoring
+   score = score + Math.round((frameRate()/60))
+    
+    
+    if(score>0 && score%100 === 0){
+       checkPointSound.play() 
     }
-  
+    
+    if (ground.x < 0){
+      ground.x = ground.width/2;
+    }
+    
+    //jump when the space key is pressed
+    if((keyDown("space")||touches.length>0)&& trex.y >= 100) {
+        trex.velocityY = -12;
+        jumpSound.play();
+        touches = [];
+    }
+    
+    //add gravity
     trex.velocityY = trex.velocityY + 0.8
   
-    if (solo.x < 0){
-      solo.x = solo.width/2;
-    }
+    //spawn the clouds
+    spawnClouds();
   
-    trex.collide(soloInvisivel);
-    gerarNuvens();
-    gerarObstaculos();
-  
-    if(grupoDeObstaculos.isTouching(trex)){
-        estadoJogo = ENCERRAR;
-    }
-  }
-  else if (estadoJogo === ENCERRAR) {
-    fimDeJogo.visible = true;
-    reiniciar.visible = true;
+    //spawn obstacles on the ground
+    spawnObstacles();
     
-    //define velocidade de cada objeto do jogo como 0
-    solo.velocityX = 0;
-    trex.velocityY = 0;
-    grupoDeObstaculos.setVelocityXEach(0);
-    grupoDeNuvens.setVelocityXEach(0);
-    
-    //altera a animação do Trex
-    trex.changeAnimation("collided",trex_colidiu);
-    
-    //define o tempo de vida dos objetos do jogo para que nunca sejam destruídos
-    grupoDeObstaculos.setLifetimeEach(-1);
-    grupoDeNuvens.setLifetimeEach(-1);
-    
-    if(mousePressedOver(reiniciar)) {
-      reset();
+    if(obstaclesGroup.isTouching(trex)){
+        //trex.velocityY = -12;
+        jumpSound.play();
+        gameState = END;
+        dieSound.play()
+      
     }
   }
+   else if (gameState === END) {
+      gameOver.visible = true;
+      restart.visible = true;
+     
+     //change the trex animation
+      trex.changeAnimation("collided", trex_collided);
+    
+     
+     
+      ground.velocityX = 0;
+      trex.velocityY = 0
+      
+      //set lifetime of the game objects so that they are never destroyed
+    obstaclesGroup.setLifetimeEach(-1);
+    cloudsGroup.setLifetimeEach(-1);
+     
+     obstaclesGroup.setVelocityXEach(0);
+     cloudsGroup.setVelocityXEach(0);  
+     
+     if(mousePressedOver(restart)){
+        reset();
+        }
+   }
   
-  
+ 
+  //stop trex from falling down
+  trex.collide(invisibleGround);
+
+
   drawSprites();
 }
 
-function gerarNuvens() {
-  //escreva o código aqui para gerar as nuvens 
-  if (frameCount % 60 === 0) {
-    nuvem = createSprite(600,120,40,10);
-    nuvem.y = Math.round(random(80,120));
-    nuvem.addImage(imagemDaNuvem);
-    nuvem.scale = 0.5;
-    nuvem.velocityX = -3;
-    
-     //atribuir tempo de duração à variável
-    nuvem.lifetime = 200; 
-    
-    //ajustando a profundidade
-    nuvem.depth = trex.depth;
-    trex.depth = trex.depth + 1;
-        
-    //adicionando nuvem ao grupo
-   grupoDeNuvens.add(nuvem);
-  }
+function reset(){
+  gameState = PLAY
   
+  gameOver.visible = false;
+  restart.visible = false;
+  
+  obstaclesGroup.destroyEach();
+  cloudsGroup.destroyEach();
+  
+
 }
 
-function gerarObstaculos() {
-  if(frameCount % 60 === 0) {
-    var obstaculo = createSprite(600,165,10,40);
-    //obstaculo.debug = true;
-    obstaculo.velocityX = -(6 + 3*pontuacao/100);
-    
-    //gerar obstáculos aleatórios
+
+function spawnObstacles(){
+ if (frameCount % 60 === 0){
+   var obstacle = createSprite(windowWidth,height-30,10,40);
+   obstacle.velocityX = -(6 + score/100);
+   
+    //generate random obstacles
     var rand = Math.round(random(1,6));
     switch(rand) {
-      case 1: obstaculo.addImage(obstaculo1);
+      case 1: obstacle.addImage(obstacle1);
               break;
-      case 2: obstaculo.addImage(obstaculo2);
+      case 2: obstacle.addImage(obstacle2);
               break;
-      case 3: obstaculo.addImage(obstaculo3);
+      case 3: obstacle.addImage(obstacle3);
               break;
-      case 4: obstaculo.addImage(obstaculo4);
+      case 4: obstacle.addImage(obstacle4);
               break;
-      case 5: obstaculo.addImage(obstaculo5);
+      case 5: obstacle.addImage(obstacle5);
               break;
-      case 6: obstaculo.addImage(obstaculo6);
+      case 6: obstacle.addImage(obstacle6);
               break;
       default: break;
     }
-    
-    //atribuir escala e tempo de duração ao obstáculo           
-    obstaculo.scale = 0.5;
-    obstaculo.lifetime = 300;
-    //adicionar cada obstáculo ao grupo
-    grupoDeObstaculos.add(obstaculo);
-  }
+   
+    //assign scale and lifetime to the obstacle           
+    obstacle.scale = 0.5;
+    obstacle.lifetime = 300;
+   
+   //add each obstacle to the group
+    obstaclesGroup.add(obstacle);
+ }
 }
 
-function reset(){
-  estadoJogo = JOGAR;
-  fimDeJogo.visible = false;
-  reiniciar.visible = false;
-  
-  grupoDeObstaculos.destroyEach();
-  grupoDeNuvens.destroyEach();
-  
-  trex.changeAnimation("running",trex_correndo);
-  
- 
-  
-  pontuacao = 0;
-  
+function spawnClouds() {
+  //write code here to spawn the clouds
+  if (frameCount % 60 === 0) {
+    var cloud = createSprite(600,120,40,10);
+    cloud.y = Math.round(random(80,120));
+    cloud.addImage(cloudImage);
+    cloud.scale = 0.5;
+    cloud.velocityX = -3;
+    
+     //assign lifetime to the variable
+    cloud.lifetime = 200;
+    
+    //adjust the depth
+    cloud.depth = trex.depth;
+    trex.depth = trex.depth + 1;
+    
+    //add each cloud to the group
+    cloudsGroup.add(cloud);
+  }
 }
